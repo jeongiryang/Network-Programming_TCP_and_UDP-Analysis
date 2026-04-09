@@ -15,11 +15,12 @@ void handleError(const char *msg) {
 }
 
 // UDP 전송 함수
-void sendData(int clientSock, struct sockaddr_in *destAddr, int speed) {
+void sendData(int clientSock, struct sockaddr_in *destAddr, int speed, int showData) {
     // 실습 조건인 500, 1000, 2000바이트만큼 데이터 보낼 공간 할당
     char *buffer = (char*)malloc(speed);
     // 에코 서버가 돌려주는 것을 받을 공간도 똑같은 크기로 같이 만듦
     char *recvBuffer = (char*)malloc(speed);
+    char sampleData[101] = {0};
     
     if (buffer == NULL || recvBuffer == NULL) handleError("malloc error");
     
@@ -41,6 +42,16 @@ void sendData(int clientSock, struct sockaddr_in *destAddr, int speed) {
         socklen_t fromLen = sizeof(fromAddr);
         ssize_t readLen = recvfrom(clientSock, recvBuffer, speed, 0, (struct sockaddr*)&fromAddr, &fromLen);
         
+        if (readLen > 0) {
+            printf("서버로부터 돌려받은 데이터 %ld bytes\n", readLen);
+            
+            if (showData) {
+                strncpy(sampleData, recvBuffer, 100);
+                printf("에코 데이터 샘플: %s\n", sampleData);
+            }
+            printf("------------------------------------\n");
+        }
+        
         // 받는 것도 실패하면 무한루프 빠져나감
         if (readLen <= 0) break;
 
@@ -60,10 +71,13 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
-    // 커맨드 라인에서 글자로 들어온 속도를 진짜 숫자로 변환
+    // 터미널에서 글자로 들어온 속도를 진짜 숫자로 변환
     int sendSpeed = atoi(argv[1]);
-    int clientSock;
+    int clientSock, showData;
     struct sockaddr_in servAddr; // 주소 정보 담아두는 상자 같은 거
+
+    printf("데이터 출력? (1: 예, 0: 아니오): ");
+    if (scanf("%d", &showData) != 1) showData = 0;
 
     // IPv4 주소랑 UDP 방식(DGRAM) 소켓 만들기
     clientSock = socket(AF_INET, SOCK_DGRAM, 0);
@@ -80,7 +94,7 @@ int main(int argc, char *argv[]) {
     printf("UDP 전송 준비 완료 (에코 모드)\n");
     
     // UDP는 TCP랑 다르게 연결 과정 없이 그냥 바로 데이터 쏨
-    sendData(clientSock, &servAddr, sendSpeed);
+    sendData(clientSock, &servAddr, sendSpeed, showData);
 
     // 소켓 자원 반납
     close(clientSock);

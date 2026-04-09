@@ -4,7 +4,7 @@
 #include <unistd.h>
 
 #include <arpa/inet.h> // 주소 변환해주는 inet_addr 같은 함수 쓰려고 추가함
-#include <sys/socket.h> // 소켓 만들고 연결할 때 필요한 함수들이 모여있는 헤더
+#include <sys/socket.h> // 소켓 만들고 연결할 때 필요한 함수들이 모여있는 거
 
 #define IP "127.0.0.1" // 내 컴퓨터에서 NetEM으로 장애 환경 테스트하기 위한 주소 
 #define PORT 2022 
@@ -14,14 +14,15 @@ void handleError(const char *msg) {
     exit(1);
 }
 
-void sendData(int sock, int speed) {
+// 출력 여부 변수 showData 추가
+void sendData(int sock, int speed, int showData) {
     // 실습 조건: 500, 1000, 2000바이트씩 공간 만들어서 보냄
     char *buffer = (char*)malloc(speed);
     // 서버가 다시 돌려주는 거 받을 공간도 똑같이 만듦 (에코 서버)
     char *recvBuffer = (char*)malloc(speed); 
+    char sampleData[101] = {0}; // 출력용 샘플 담을 공간
     
     if (buffer == NULL || recvBuffer == NULL) handleError("malloc error");
-    
     
     memset(buffer, 'T', speed); // TCP 데이터라서 'T'로 채워넣음
 
@@ -34,8 +35,20 @@ void sendData(int sock, int speed) {
         if (sentLen <= 0) break;
         
         // 2. 에코 데이터 받기 
-        // 에코 클라이언트니까 서버가 메아리처럼 돌려준 걸 다시 받아야 함
+        // 에코 클라이언트니까 서버가 돌려준 데이터를 다시 받아야 함
         ssize_t readLen = recv(sock, recvBuffer, speed, 0);
+        
+        if (readLen > 0) {
+            printf("서버로부터 돌려받은 데이터 %ld bytes\n", readLen);
+            
+            // 사용자가 1(예)을 선택했을 때만 앞부분 100바이트 잘라서 보여줌
+            if (showData) {
+                strncpy(sampleData, recvBuffer, 100);
+                printf("에코 데이터 샘플: %s\n", sampleData);
+            }
+            printf("------------------------------------\n");
+        }
+        
         if (readLen <= 0) break;
         
         // 1초 안 쉬고 그냥 보내면 속도가 너무 제각각이라 1초로 딱 맞춤
@@ -53,9 +66,14 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // 터미널에서 글자로 들어온 속도를 진짜 숫자로 변환
     int sendSpeed = atoi(argv[1]); // 문자열로 들어온 숫자를 진짜 숫자로 바꿔줌
-    int clientSock;
+    int clientSock, showData;
     struct sockaddr_in servAddr; // 서버 주소 정보 저장하는 상자 같은 거
+
+    // 서버처럼 클라이언트도 데이터 출력할지 먼저 물어봄
+    printf("데이터 출력? (1: 예, 0: 아니오): ");
+    if (scanf("%d", &showData) != 1) showData = 0;
 
     // IPv4 주소 체계랑 TCP 방식 소켓 생성
     clientSock = socket(AF_INET, SOCK_STREAM, 0);
@@ -74,7 +92,8 @@ int main(int argc, char *argv[]) {
     
     printf("서버 연결 성공 (에코 모드)\n");
     
-    sendData(clientSock, sendSpeed);
+    // showData 인자 같이 넘겨줌
+    sendData(clientSock, sendSpeed, showData);
 
     close(clientSock); // 다 썼으면 소켓 닫아서 자원 반납
     return 0;
