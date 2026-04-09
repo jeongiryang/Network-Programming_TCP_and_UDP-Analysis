@@ -9,28 +9,27 @@
 #define PORT 2022
 #define BUFSIZE 4096
 
-// 기존 코드 로직 적용
 void measure(int server) {
     char buffer[BUFSIZE];
     struct sockaddr_in cliaddr;
     socklen_t clilen;
-    
     int total = 0;
-    time_t start = time(NULL); // 루프 진입 전 타이머 시작
+    time_t start = time(NULL);
     ssize_t len;
 
     for (;;) {
         clilen = sizeof(cliaddr);
-        len = recvfrom(server, buffer, BUFSIZE, 0, (struct sockaddr*)&cliaddr, &clilen);
-        
+        len = recvfrom(server, buffer, BUFSIZE - 1, 0, (struct sockaddr*)&cliaddr, &clilen);
         if (len > 0) {
-            total += len; // 받은 만큼 더하기
-            
+            buffer[len] = '\0';
+            total += len;
+            printf("수신 데이터: %s\n", buffer);
+
             time_t now = time(NULL);
-            if (now - start >= 1) { // 1초 지나면 출력
+            if (now - start >= 1) {
                 printf("UDP Throughput: %d bytes/sec\n", total);
-                total = 0; // 0으로 초기화
-                start = now; // 타이머 초기화
+                total = 0;
+                start = now;
             }
         }
     }
@@ -41,18 +40,16 @@ int main() {
     struct sockaddr_in servaddr;
 
     server = socket(AF_INET, SOCK_DGRAM, 0);
-    if (server < 0) { perror("소켓 에러"); exit(1); }
+    if (server < 0) exit(1);
 
     memset(&servaddr, 0, sizeof(servaddr));
     servaddr.sin_family = AF_INET;
     servaddr.sin_addr.s_addr = htonl(INADDR_ANY);
     servaddr.sin_port = htons(PORT);
 
-    if (bind(server, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0) {
-        perror("바인딩 에러"); exit(1);
-    }
+    if (bind(server, (struct sockaddr*)&servaddr, sizeof(servaddr)) < 0) exit(1);
 
-    printf("포트 %d에서 대기 중...\n", PORT);
+    printf("포트 %d 대기 중\n", PORT);
     measure(server);
 
     close(server);
