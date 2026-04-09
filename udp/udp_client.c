@@ -7,18 +7,23 @@
 
 #define IP "127.0.0.1"
 #define PORT 2022
-#define CHECK(cond, msg) if(cond) { perror(msg); exit(1); }
 
-void senddata(int client, struct sockaddr_in *dest, int speed) {
+void handleError(const char *msg) {
+    perror(msg);
+    exit(1);
+}
+
+void sendData(int clientSock, struct sockaddr_in *destAddr, int speed) {
     char *buffer = (char*)malloc(speed);
-    if (buffer == NULL) exit(1);
+    if (buffer == NULL) handleError("malloc error");
     memset(buffer, 'U', speed);
 
-    printf("목표 속도: %d B/s (1초마다 전송)\n", speed);
+    printf("목표 전송 속도: %d bytes/sec\n", speed);
 
     for (;;) {
-        ssize_t sent = sendto(client, buffer, speed, 0, (struct sockaddr*)dest, sizeof(*dest));
-        if (sent <= 0) break;
+        ssize_t sentLen = sendto(clientSock, buffer, speed, 0, (struct sockaddr*)destAddr, sizeof(*destAddr));
+        if (sentLen <= 0) break;
+
         sleep(1);
     }
     free(buffer);
@@ -26,25 +31,25 @@ void senddata(int client, struct sockaddr_in *dest, int speed) {
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
-        fprintf(stderr, "사용법: %s <속도>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <speed>\n", argv[0]);
         return 1;
     }
 
-    int speed = atoi(argv[1]);
-    int client;
-    struct sockaddr_in servaddr;
+    int sendSpeed = atoi(argv[1]);
+    int clientSock;
+    struct sockaddr_in servAddr;
 
-    client = socket(AF_INET, SOCK_DGRAM, 0);
-    CHECK(client < 0, "소켓 에러");
+    clientSock = socket(AF_INET, SOCK_DGRAM, 0);
+    if (clientSock < 0) handleError("socket error");
 
-    memset(&servaddr, 0, sizeof(servaddr));
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = inet_addr(IP);
-    servaddr.sin_port = htons(PORT);
+    memset(&servAddr, 0, sizeof(servAddr));
+    servAddr.sin_family = AF_INET;
+    servAddr.sin_addr.s_addr = inet_addr(IP);
+    servAddr.sin_port = htons(PORT);
 
-    printf("UDP 전송 시작\n");
-    senddata(client, &servaddr, speed);
+    printf("UDP 전송 준비 완료\n");
+    sendData(clientSock, &servAddr, sendSpeed);
 
-    close(client);
+    close(clientSock);
     return 0;
 }

@@ -7,21 +7,22 @@
 
 #define IP "127.0.0.1"
 #define PORT 2022
-#define CHECK(cond, msg) if(cond) { perror(msg); exit(1); }
 
-void senddata(int sock, int speed) {
+void handleError(const char *msg) {
+    perror(msg);
+    exit(1);
+}
+
+void sendData(int sock, int speed) {
     char *buffer = (char*)malloc(speed);
-    if (buffer == NULL) exit(1);
+    if (buffer == NULL) handleError("malloc error");
     memset(buffer, 'X', speed);
 
-    printf("목표 속도: %d B/s (1초마다 전송)\n", speed);
+    printf("목표 전송 속도: %d bytes/sec\n", speed);
 
     for (;;) {
-        ssize_t sent = send(sock, buffer, speed, 0);
-        if (sent <= 0) {
-            printf("연결 종료\n");
-            break;
-        }
+        ssize_t sentLen = send(sock, buffer, speed, 0);
+        if (sentLen <= 0) break;
         sleep(1); 
     }
     free(buffer);
@@ -29,27 +30,28 @@ void senddata(int sock, int speed) {
 
 int main(int argc, char *argv[]) {
     if (argc != 2) {
-        fprintf(stderr, "사용법: %s <속도>\n", argv[0]);
+        fprintf(stderr, "Usage: %s <speed>\n", argv[0]);
         return 1;
     }
 
-    int speed = atoi(argv[1]);
-    int client;
-    struct sockaddr_in servaddr;
+    int sendSpeed = atoi(argv[1]);
+    int clientSock;
+    struct sockaddr_in servAddr;
 
-    client = socket(AF_INET, SOCK_STREAM, 0);
-    CHECK(client < 0, "소켓 에러");
+    clientSock = socket(AF_INET, SOCK_STREAM, 0);
+    if (clientSock < 0) handleError("socket error");
 
-    memset(&servaddr, 0, sizeof(servaddr));
-    servaddr.sin_family = AF_INET;
-    servaddr.sin_addr.s_addr = inet_addr(IP);
-    servaddr.sin_port = htons(PORT);
+    memset(&servAddr, 0, sizeof(servAddr));
+    servAddr.sin_family = AF_INET;
+    servAddr.sin_addr.s_addr = inet_addr(IP);
+    servAddr.sin_port = htons(PORT);
 
-    CHECK(connect(client, (struct sockaddr*)&servaddr, sizeof(servaddr)) != 0, "연결 에러");
+    if (connect(clientSock, (struct sockaddr*)&servAddr, sizeof(servAddr)) != 0)
+        handleError("connect error");
     
-    printf("서버 접속 완료\n");
-    senddata(client, speed);
+    printf("서버 연결 성공\n");
+    sendData(clientSock, sendSpeed);
 
-    close(client);
+    close(clientSock);
     return 0;
 }
