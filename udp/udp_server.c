@@ -9,7 +9,7 @@
 #define PORT 2022
 #define BUFSIZE 4096
 
-// 이량 님의 원본 코드 로직 완벽 적용
+// 원본 코드 로직 적용
 void measure(int server) {
     char buffer[BUFSIZE];
     struct sockaddr_in cliaddr;

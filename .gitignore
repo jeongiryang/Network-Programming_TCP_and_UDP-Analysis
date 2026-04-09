@@ -3,6 +3,8 @@ tcp/tcp_server
 tcp/tcp_client
 udp/udp_server
 udp/udp_client
+/tcp_part   
+/udp_part
 
 # 기타 컴파일 파일
 *.o

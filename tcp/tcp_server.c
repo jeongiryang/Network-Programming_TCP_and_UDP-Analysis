@@ -9,7 +9,7 @@
 #define PORT 2022
 #define BUFSIZE 4096
 
-// 이량 님의 원본 코드 로직 완벽 적용
+// 원본 코드 로직 적용
 void measure(int client) {
     char buffer[BUFSIZE];
     int total = 0;
@@ -22,7 +22,7 @@ void measure(int client) {
             total += len; // 받은 만큼 더하기
             
             time_t now = time(NULL);
-            if (now - start >= 1) { // 딱 1초 지나면 출력
+            if (now - start >= 1) { // 1초 지나면 출력
                 printf("TCP Throughput: %d bytes/sec\n", total);
                 total = 0; // 0으로 초기화
                 start = now; // 타이머 초기화
