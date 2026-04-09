@@ -25,6 +25,10 @@ void measure(int client, int showData) {
 
     // 클라이언트랑 연결 끊기 전까지 계속 받음. 받기만 하고 저장은 안 하니까 자동 삭제됨
     while ((readLen = recv(client, buffer, BUFSIZE - 1, 0)) > 0) {
+        
+        //  에코 서버니까 클라이언트가 보낸 걸 그대로 다시 쏴줌 
+        send(client, buffer, readLen, 0);
+
         buffer[readLen] = '\0';     
         totalBytes += readLen;      // 전송률 계산하려고 받은 양을 계속 더함
         
@@ -83,7 +87,7 @@ int main() {
         if (clientSock < 0) continue;
         
         printf("클라이언트 접속\n");
-        // 여기서 실제로 데이터 받고 속도 측정함
+        // 여기서 실제로 데이터 받고 다시 주는(에코) 및 속도 측정함
         measure(clientSock, showData);
         
         // 통신 끝나면 소켓 닫고 다시 루프 돌면서 다음 접속 기다림

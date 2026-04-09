@@ -7,7 +7,7 @@
 #include <time.h>       // 1초마다 전송 속도 계산하려고 시간 체크용도
 
 #define PORT 2022       // 서버 포트 번호 
-#define BUFSIZE 2017    // 내 학번 뒷자리로 정한 버퍼 크기. 2000바이트까지 받을 수 있음
+#define BUFSIZE 2017    // 내 학번 뒷자리로 정한 버퍼 크기. 실습 조건에서 최대 바이트(2000)까지 가능
 
 // 에러 메시지 띄우고 바로 꺼버리는 함수
 void handleError(const char *msg) {
@@ -15,9 +15,9 @@ void handleError(const char *msg) {
     exit(1);
 }
 
-// UDP 데이터 받아서 속도 측정하는 함수
+// UDP 데이터 받아서 에코에서 다시 전송하고 속도 측정하는 함수
 void measure(int serverSock, int showData) {
-    char buffer[BUFSIZE];           // 데이터 임시로 담는 곳. 받자마자 덮어씌우니까 자동 삭제됨
+    char buffer[BUFSIZE];           // 데이터 임시로 담는 곳
     struct sockaddr_in cliAddr;     // 데이터 보낸 사람 정보 담아두는 상자
     socklen_t cliLen;               
     int totalBytes = 0;             // 1초 동안 받은 데이터양 합계
@@ -32,6 +32,10 @@ void measure(int serverSock, int showData) {
         readLen = recvfrom(serverSock, buffer, BUFSIZE - 1, 0, (struct sockaddr*)&cliAddr, &cliLen);
         
         if (readLen > 0) {
+            // 에코 서버니까 받은 데이터를 그대로 클라이언트한테 다시 쏴줌
+            // 방금 recvfrom으로 알아낸 클라이언트 주소(cliAddr)를 목적지로 씀
+            sendto(serverSock, buffer, readLen, 0, (struct sockaddr*)&cliAddr, cliLen);
+
             buffer[readLen] = '\0'; 
             totalBytes += readLen;  // 속도 계산하려고 받은 양을 계속 더함
             
@@ -43,7 +47,7 @@ void measure(int serverSock, int showData) {
                 if (showData) {
                     printf("수신 데이터 샘플: %s\n", sampleData);
                 }
-                // [실험 결과] UDP는 손실률 1% 환경에서도 TCP보다 속도가 훨씬 잘 나오는 게 확인됨
+                // 실험 결과 UDP는 손실률 1% 환경에서도 TCP보다 속도가 훨씬 잘 나오는 게 확인됨
                 printf("UDP Throughput: %d bytes/sec\n", totalBytes);
                 printf("------------------------------------\n");
                 

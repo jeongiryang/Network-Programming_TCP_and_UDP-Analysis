@@ -2,12 +2,11 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-// 주소 변환해주는 inet_addr 같은 함수 쓰려고 추가함
-#include <arpa/inet.h>
-// 소켓 만들고 연결할 때 필요한 함수들이 모여있는 헤더
-#include <sys/socket.h>
 
-#define IP "127.0.0.1" // 내 컴퓨터에서 NetEM으로 장애 환경 테스트하려고 루프백 주소 사용
+#include <arpa/inet.h> // 주소 변환해주는 inet_addr 같은 함수 쓰려고 추가함
+#include <sys/socket.h> // 소켓 만들고 연결할 때 필요한 함수들이 모여있는 헤더
+
+#define IP "127.0.0.1" // 내 컴퓨터에서 NetEM으로 장애 환경 테스트하기 위한 주소 
 #define PORT 2022 
 
 void handleError(const char *msg) {
@@ -16,24 +15,35 @@ void handleError(const char *msg) {
 }
 
 void sendData(int sock, int speed) {
-    // 실습에서 하라는 대로 500, 1000, 2000바이트씩 공간 만들어서 보냄
+    // 실습 조건: 500, 1000, 2000바이트씩 공간 만들어서 보냄
     char *buffer = (char*)malloc(speed);
-    if (buffer == NULL) handleError("malloc error");
+    // 서버가 다시 돌려주는 거 받을 공간도 똑같이 만듦 (에코 서버)
+    char *recvBuffer = (char*)malloc(speed); 
     
-    memset(buffer, 'T', speed);
+    if (buffer == NULL || recvBuffer == NULL) handleError("malloc error");
+    
+    
+    memset(buffer, 'T', speed); // TCP 데이터라서 'T'로 채워넣음
 
     printf("목표 전송 속도: %d bytes/sec\n", speed);
 
     for (;;) {
+        // 1. 데이터 보내기
         // 실험: TCP는 손실률 1% 환경에서 UDP보다 속도가 확 떨어짐. 다시 보내느라 그런 듯
         ssize_t sentLen = send(sock, buffer, speed, 0);
-        
         if (sentLen <= 0) break;
+        
+        // 2. 에코 데이터 받기 
+        // 에코 클라이언트니까 서버가 메아리처럼 돌려준 걸 다시 받아야 함
+        ssize_t readLen = recv(sock, recvBuffer, speed, 0);
+        if (readLen <= 0) break;
         
         // 1초 안 쉬고 그냥 보내면 속도가 너무 제각각이라 1초로 딱 맞춤
         sleep(1); 
     }
+    
     free(buffer);
+    free(recvBuffer); // 다 썼으면 받은 공간도 비워줌
 }
 
 int main(int argc, char *argv[]) {
@@ -45,7 +55,7 @@ int main(int argc, char *argv[]) {
 
     int sendSpeed = atoi(argv[1]); // 문자열로 들어온 숫자를 진짜 숫자로 바꿔줌
     int clientSock;
-    struct sockaddr_in servAddr; // 서버 주소 정보 저장하는 상자 같은거
+    struct sockaddr_in servAddr; // 서버 주소 정보 저장하는 상자 같은 거
 
     // IPv4 주소 체계랑 TCP 방식 소켓 생성
     clientSock = socket(AF_INET, SOCK_STREAM, 0);
@@ -62,7 +72,7 @@ int main(int argc, char *argv[]) {
     if (connect(clientSock, (struct sockaddr*)&servAddr, sizeof(servAddr)) != 0)
         handleError("connect error");
     
-    printf("서버 연결 성공\n");
+    printf("서버 연결 성공 (에코 모드)\n");
     
     sendData(clientSock, sendSpeed);
 

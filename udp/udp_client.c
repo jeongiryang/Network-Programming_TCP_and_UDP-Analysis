@@ -5,7 +5,7 @@
 #include <arpa/inet.h>  // 주소 글자를 숫자로 바꾸거나 순서 맞출 때 필요함
 #include <sys/socket.h> // 소켓 만들고 데이터 보낼 때 쓰는 함수들 모음
 
-#define IP "127.0.0.1" // 내 컴퓨터 안에서 테스트하려고 루프백 주소로 설정
+#define IP "127.0.0.1" // 내 컴퓨터 안에서 테스트하기 위한 주소
 #define PORT 2022 // 데이터를 보낼 서버 포트 번호
 
 // 에러 나면 메시지 띄우고 바로 꺼버리는 함수
@@ -18,9 +18,12 @@ void handleError(const char *msg) {
 void sendData(int clientSock, struct sockaddr_in *destAddr, int speed) {
     // 실습 조건인 500, 1000, 2000바이트만큼 데이터 보낼 공간 할당
     char *buffer = (char*)malloc(speed);
-    if (buffer == NULL) handleError("malloc error");
+    // 에코 서버가 돌려주는 것을 받을 공간도 똑같은 크기로 같이 만듦
+    char *recvBuffer = (char*)malloc(speed);
     
-    // UDP 데이터라는 거 티 내려고 'U'로 채워넣음
+    if (buffer == NULL || recvBuffer == NULL) handleError("malloc error");
+    
+    // UDP 데이터라서 'U'로 채워넣음
     memset(buffer, 'U', speed);
 
     printf("목표 전송 속도: %d bytes/sec\n", speed);
@@ -32,11 +35,22 @@ void sendData(int clientSock, struct sockaddr_in *destAddr, int speed) {
         // 전송 실패하면 반복문 탈출
         if (sentLen <= 0) break;
 
-        // 1초마다 보내서 초당 전송량을 딱 맞추려고 넣음
+        // 에코 클라이언트니까 방금 보낸 데이터를 서버한테서 바로 다시 받아야 함
+        // UDP는 받을 때도 보낸 사람 주소를 담을 곳이 필요해서 빈 상자를 하나 만들어서 넣어줌
+        struct sockaddr_in fromAddr;
+        socklen_t fromLen = sizeof(fromAddr);
+        ssize_t readLen = recvfrom(clientSock, recvBuffer, speed, 0, (struct sockaddr*)&fromAddr, &fromLen);
+        
+        // 받는 것도 실패하면 무한루프 빠져나감
+        if (readLen <= 0) break;
+
+        // 1초 안 쉬고 그냥 보내면 속도가 제각각이라 1초마다 보내게 딱 맞춤
         sleep(1);
     }
-    // 다 썼으면 메모리 공간 비워줌
+    
+    // 다 썼으면 할당했던 메모리 공간 싹 비워줌
     free(buffer);
+    free(recvBuffer);
 }
 
 int main(int argc, char *argv[]) {
@@ -63,9 +77,9 @@ int main(int argc, char *argv[]) {
     // 컴퓨터마다 숫자 읽는 순서가 다를 수 있어서 하나로 통일하는 작업
     servAddr.sin_port = htons(PORT);
 
-    printf("UDP 전송 준비 완료\n");
+    printf("UDP 전송 준비 완료 (에코 모드)\n");
     
-    // UDP는 TCP랑 다르게 연결(connect) 과정 없이 그냥 바로 데이터 쏨
+    // UDP는 TCP랑 다르게 연결 과정 없이 그냥 바로 데이터 쏨
     sendData(clientSock, &servAddr, sendSpeed);
 
     // 소켓 자원 반납
