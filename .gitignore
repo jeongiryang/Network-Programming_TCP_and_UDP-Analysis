@@ -1,8 +1,8 @@
 # 실행 파일 (컴파일 결과물)
-tcp_part/tcp_server
-tcp_part/tcp_client
-udp_part/udp_server
-udp_part/udp_client
+tcp/tcp_server
+tcp/tcp_client
+udp/udp_server
+udp/udp_client
 
 # 기타 컴파일 파일
 *.o
