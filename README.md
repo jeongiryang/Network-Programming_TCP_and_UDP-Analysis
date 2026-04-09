@@ -1,51 +1,62 @@
 # Network Programming HW01: TCP vs UDP Performance Analysis
 
 ## 환경 구축
+- **언어**: C 프로그래밍 언어
 - **OS**: Windows 11 (WSL2 - Ubuntu 24.04)
 - **Compiler**: GCC 13.3.0
 - **Network Tool**: Linux tc (NetEM)
 
 ## 폴더 구조 및 파일 설명
 
-### 1. tcp_part/ (TCP 통신 구현부)
-- **tcp_server.c**: TCP 에코 서버다. 클라이언트의 접속을 수락하고 수신된 데이터를 읽어들임. 1초 단위로 누적 수신량(Throughput)을 계산하여 터미널에 출력.
-- **tcp_client.c**: TCP 클라이언트다. 실행 시 인자로 목표 속도(500, 1000, 2000 B/s)를 입력받는다. 네트워크 부하를 부드럽게 분산하기 위해 목표 속도의 데이터를 1초에 10번(`usleep(100000)`)으로 나누어 전송하는 속도 제어 로직을 적용.
+### 1. tcp/ (TCP 통신 구현부)
+- **tcp_server.c**: 한 번에 하나의 클라이언트와 통신하는 TCP 에코 서버다.  
+  실행 시 데이터 출력 여부를 선택할 수 있다.  
+  학번 뒷자리를 반영한 **BUFSIZE(2017)**를 사용하며, 데이터를 수신한 후 즉시 삭제 처리한다.  
+  1초 단위로 실시간 Throughput(bytes/sec)을 계산하여 출력한다.
 
-### 2. udp_part/ (UDP 통신 구현부)
-- **udp_server.c**: UDP 서버다. `accept` 과정 없이 `recvfrom`을 통해 데이터를 즉시 수신하며, TCP 서버와 동일하게 1초 단위로 Throughput을 측정해 출력.
-- **udp_client.c**: UDP 클라이언트다. TCP 클라이언트와 동일한 조건(1초에 10번 분할 전송)으로 속도 제어 로직을 적용했으며, `sendto`를 사용해 서버로 데이터를 전송.
+- **tcp_client.c**: 지정된 속도로 데이터를 전송하는 TCP 클라이언트다.  
+  목표 속도(500, 1000, 2000 B/s)의 데이터를 1초마다 통째로 전송한 뒤 `sleep(1)`을 호출하여 정밀한 속도 제어를 수행한다.
+
+### 2. udp/ (UDP 통신 구현부)
+- **udp_server.c**: 한 번에 하나의 클라이언트와 통신하는 UDP 에코 서버다.  
+  TCP 서버와 동일하게 데이터 수신 후 삭제 및 1초 단위 Throughput 측정 기능을 제공한다.
+
+- **udp_client.c**: 지정된 속도로 데이터를 전송하는 UDP 클라이언트다.  
+  `sendto`를 사용하며, TCP 클라이언트와 동일하게 `sleep(1)` 기반의 정밀 전송 로직을 적용한다.
 
 ## 컴파일 및 실행 방법
 
 ### TCP 테스트
+
 ```bash
 # 컴파일
 gcc -o tcp_server tcp_server.c
 gcc -o tcp_client tcp_client.c
 
-# 실행 (서버를 먼저 실행하여 대기)
+# 서버 실행 (데이터 출력 유무 선택: 1 또는 0)
 ./tcp_server
 
-# 실행 (클라이언트 - 500, 1000, 2000 중 속도 지정)
+# 클라이언트 실행 (500, 1000, 2000 중 속도 입력)
 ./tcp_client 500
 ```
 
 ### UDP 테스트
+
 ```bash
 # 컴파일
 gcc -o udp_server udp_server.c
 gcc -o udp_client udp_client.c
 
-# 실행 (서버를 먼저 실행하여 대기)
+# 서버 실행
 ./udp_server
 
-# 실행 (클라이언트 - 500, 1000, 2000 중 속도 지정)
-./udp_client 500
+# 클라이언트 실행 (500, 1000, 2000 중 속도 입력)
+./udp_client 500 
 ```
 
 ## NetEM 네트워크 제어 명령어
 
-과제의 핵심인 혼잡 제어(Congestion Control) 실험을 위해 로컬 루프백(`lo`) 인터페이스에 인위적인 네트워크 장애를 가함. 터미널을 분할하여 아래 명령어들을 사용.
+실험 조건인 RTT 100ms 및 패킷 손실률(0.1%, 1%) 환경을 구축하기 위해 사용한다.
 
 ### 장애 설정 추가 (RTT 100ms, 패킷 손실 1%)
 ```bash
