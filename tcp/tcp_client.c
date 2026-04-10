@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <time.h>       // 1초마다 송신량 계산하려고 추가함
 
 #include <arpa/inet.h> // 주소 변환해주는 inet_addr 같은 함수 쓰려고 추가함
 #include <sys/socket.h> // 소켓 만들고 연결할 때 필요한 함수들이 모여있는 거
@@ -22,6 +23,9 @@ void sendData(int sock, int speed, int showData) {
     char *recvBuffer = (char*)malloc(speed); 
     char sampleData[101] = {0}; // 출력용 샘플 담을 공간
     
+    int totalSentBytes = 0;             // 1초 동안 보낸 데이터양 합계
+    time_t startTime = time(NULL);      // 송신 측정 시작 시간
+
     if (buffer == NULL || recvBuffer == NULL) handleError("malloc error");
     
     memset(buffer, 'T', speed); // TCP 데이터라서 'T'로 채워넣음
@@ -33,6 +37,8 @@ void sendData(int sock, int speed, int showData) {
         // 실험: TCP는 손실률 1% 환경에서 UDP보다 속도가 확 떨어짐. 다시 보내느라 그런 듯
         ssize_t sentLen = send(sock, buffer, speed, 0);
         if (sentLen <= 0) break;
+        
+        totalSentBytes += sentLen; // 보낸 만큼 송신량 누적
         
         // 2. 에코 데이터 받기 
         // 에코 클라이언트니까 서버가 돌려준 데이터를 다시 받아야 함
@@ -46,8 +52,16 @@ void sendData(int sock, int speed, int showData) {
                 strncpy(sampleData, recvBuffer, 100);
                 printf("에코 데이터 샘플: %s\n", sampleData);
             }
-            printf("------------------------------------\n");
         }
+        
+        time_t currentTime = time(NULL);
+        // 1초 지날 때마다 지금까지 쏜 데이터 양을 화면에 출력함d
+        if (currentTime - startTime >= 1) {
+            printf("TCP 송신량(Sending Throughput): %d bytes/sec\n", totalSentBytes);
+            totalSentBytes = 0;          // 다음 1초 측정하려고 다시 0으로 비움
+            startTime = currentTime;     // 시간 기준점도 지금으로 바꿈
+        }
+        printf("------------------------------------\n");
         
         if (readLen <= 0) break;
         

@@ -2,6 +2,7 @@
 #include <stdlib.h>     // 글자를 숫자로 바꾸는 atoi 같은 거 쓰려고 추가
 #include <string.h>     // 메모리 비우거나 글자 복사할 때 필요함
 #include <unistd.h>     // sleep으로 시간 멈추거나 소켓 닫을 때 사용
+#include <time.h>       // 1초마다 송신량 계산하려고 추가함
 #include <arpa/inet.h>  // 주소 글자를 숫자로 바꾸거나 순서 맞출 때 필요함
 #include <sys/socket.h> // 소켓 만들고 데이터 보낼 때 쓰는 함수들 모음
 
@@ -22,6 +23,9 @@ void sendData(int clientSock, struct sockaddr_in *destAddr, int speed, int showD
     char *recvBuffer = (char*)malloc(speed);
     char sampleData[101] = {0};
     
+    int totalSentBytes = 0;             // 1초 동안 보낸 데이터양 합계
+    time_t startTime = time(NULL);      // 송신 측정 시작 시간
+    
     if (buffer == NULL || recvBuffer == NULL) handleError("malloc error");
     
     // UDP 데이터라서 'U'로 채워넣음
@@ -36,6 +40,8 @@ void sendData(int clientSock, struct sockaddr_in *destAddr, int speed, int showD
         // 전송 실패하면 반복문 탈출
         if (sentLen <= 0) break;
 
+        totalSentBytes += sentLen; // 보낸 만큼 송신량 누적
+
         // 에코 클라이언트니까 방금 보낸 데이터를 서버한테서 바로 다시 받아야 함
         // UDP는 받을 때도 보낸 사람 주소를 담을 곳이 필요해서 빈 상자를 하나 만들어서 넣어줌
         struct sockaddr_in fromAddr;
@@ -49,8 +55,16 @@ void sendData(int clientSock, struct sockaddr_in *destAddr, int speed, int showD
                 strncpy(sampleData, recvBuffer, 100);
                 printf("에코 데이터 샘플: %s\n", sampleData);
             }
-            printf("------------------------------------\n");
         }
+        
+        time_t currentTime = time(NULL);
+        // 1초 지날 때마다 지금까지 쏜 데이터 양을 화면에 출력한다
+        if (currentTime - startTime >= 1) {
+            printf("UDP 송신량(Sending Throughput): %d bytes/sec\n", totalSentBytes);
+            totalSentBytes = 0;          // 다음 1초 측정하려고 다시 0으로 비움
+            startTime = currentTime;     // 시간 기준점도 지금으로 바꿈
+        }
+        printf("------------------------------------\n");
         
         // 받는 것도 실패하면 무한루프 빠져나감
         if (readLen <= 0) break;
