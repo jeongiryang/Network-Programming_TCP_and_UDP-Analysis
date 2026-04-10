@@ -58,6 +58,7 @@ gcc -o udp_client udp_client.c
 
 실험 조건인 RTT 100ms 및 패킷 손실률(0.1%, 1%) 환경을 구축하기 위해 사용한다.
 
+
 ### 장애 설정 추가 (RTT 100ms, 패킷 손실 1%)
 ```bash
 sudo tc qdisc add dev lo root netem delay 100ms loss 1%
@@ -66,6 +67,11 @@ sudo tc qdisc add dev lo root netem delay 100ms loss 1%
 ### 장애 설정 변경 (패킷 손실 0.1%로 변경)
 ```bash
 sudo tc qdisc change dev lo root netem delay 100ms loss 0.1%
+```
+
+### 장애 설정 적용 후 확인 명령어
+```bash
+tc qdisc show dev lo
 ```
 
 ### 장애 설정 삭제 (실험 종료 후 초기화 필수)
