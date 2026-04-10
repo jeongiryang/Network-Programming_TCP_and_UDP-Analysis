@@ -60,7 +60,13 @@ void sendData(int clientSock, struct sockaddr_in *destAddr, int speed, int showD
         time_t currentTime = time(NULL);
         // 1초 지날 때마다 지금까지 쏜 데이터 양을 화면에 출력한다
         if (currentTime - startTime >= 1) {
-            printf("UDP 송신량(Sending Throughput): %d bytes/sec\n", totalSentBytes);
+            // 자릿수를 5자리로 맞추고 막대그래프로ㅗ 나타냄
+            printf("UDP 송신량(Sending Throughput): %5d bytes/sec | ", totalSentBytes);
+            for (int i = 0; i < totalSentBytes / 500; i++) {
+                printf("■");
+            }
+            printf("\n");
+
             totalSentBytes = 0;          // 다음 1초 측정하려고 다시 0으로 비움
             startTime = currentTime;     // 시간 기준점도 지금으로 바꿈
         }

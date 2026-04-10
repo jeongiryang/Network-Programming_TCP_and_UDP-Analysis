@@ -43,7 +43,13 @@ void measure(int client, int showData) {
                 printf("수신 데이터 샘플: %s\n", sampleData);
             }
             // 1초 동안 모인 데이터 양이 곧 전송 속도임
-            printf("TCP Throughput: %d bytes/sec\n", totalBytes);
+            // 자릿수를 5자리로 맞추고 막대그래프 출력
+            printf("TCP Throughput: %5d bytes/sec | ", totalBytes);
+            for (int i = 0; i < totalBytes / 500; i++) {
+                printf("■");
+            }
+            printf("\n");
+            
             printf("------------------------------------\n");
             
             totalBytes = 0;          // 다음 1초 측정하려고 다시 0으로 비움

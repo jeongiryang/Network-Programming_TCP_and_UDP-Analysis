@@ -55,9 +55,18 @@ void sendData(int sock, int speed, int showData) {
         }
         
         time_t currentTime = time(NULL);
-        // 1초 지날 때마다 지금까지 쏜 데이터 양을 화면에 출력함d
+        // 1초 지날 때마다 지금까지 쏜 데이터 양을 화면에 출력함
         if (currentTime - startTime >= 1) {
-            printf("TCP 송신량(Sending Throughput): %d bytes/sec\n", totalSentBytes);
+            // 숫자의 자릿수를 5자리로 맞춰서 그래프 시작 위치를 정렬
+            printf("TCP 송신량(Sending Throughput): %5d bytes/sec | ", totalSentBytes);
+            
+            // 500바이트당 네모(■) 1개씩 출력하여 시각화 
+            // 왜냐하면 손실률에 따른 차이를 터미널에서 명확히 표시하기 위해서
+            for (int i = 0; i < totalSentBytes / 500; i++) {
+                printf("■");
+            }
+            printf("\n");
+
             totalSentBytes = 0;          // 다음 1초 측정하려고 다시 0으로 비움
             startTime = currentTime;     // 시간 기준점도 지금으로 바꿈
         }

@@ -48,7 +48,13 @@ void measure(int serverSock, int showData) {
                     printf("수신 데이터 샘플: %s\n", sampleData);
                 }
                 // 실험 결과 UDP는 손실률 1% 환경에서도 TCP보다 속도가 훨씬 잘 나오는 게 확인됨
-                printf("UDP Throughput: %d bytes/sec\n", totalBytes);
+                // 자릿수를 5자리로 맞추고 막대그래프 로 보여줌
+                printf("UDP Throughput: %5d bytes/sec | ", totalBytes);
+                for (int i = 0; i < totalBytes / 500; i++) {
+                    printf("■");
+                }
+                printf("\n");
+                
                 printf("------------------------------------\n");
                 
                 totalBytes = 0;          // 다음 1초 측정하려고 다시 0으로 비움
@@ -60,7 +66,7 @@ void measure(int serverSock, int showData) {
 
 int main() {
     int serverSock, showData;       
-    struct sockaddr_in servAddr;    // 서버 주소 정보 담는 상자 같은 거
+    struct sockaddr_in servAddr;    // 서버 주소 정보 담는 상자 같은 거임
 
     printf("데이터 출력? (1: 예, 0: 아니오): ");
     if (scanf("%d", &showData) != 1) showData = 0;
