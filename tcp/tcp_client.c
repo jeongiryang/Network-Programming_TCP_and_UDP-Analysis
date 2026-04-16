@@ -3,6 +3,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <time.h>       // 1초마다 송신량 계산하려고 추가함
+#include <sys/time.h>   // 전체 실행 시간 정밀하게 재서 평균 구하려고 추가함
 
 #include <arpa/inet.h> // 주소 변환해주는 inet_addr 같은 함수 쓰려고 추가함
 #include <sys/socket.h> // 소켓 만들고 연결할 때 필요한 함수들이 모여있는 거
@@ -15,7 +16,6 @@ void handleError(const char *msg) {
     exit(1);
 }
 
-
 void sendData(int sock, int speed, int showData, int mode) {
     // 실습 조건: 500, 1000, 2000바이트씩 공간 만들어서 보냄
     char *buffer = (char*)malloc(speed);
@@ -24,13 +24,18 @@ void sendData(int sock, int speed, int showData, int mode) {
     char sampleData[101] = {0}; // 출력용 샘플 담을 공간
     
     int totalSentBytes = 0;             // 1초 동안 보낸 데이터양 합계
-    time_t startTime = time(NULL);      // 송신 측정 시작 시간
+    long long cumulativeBytes = 0;      // 프로그램 시작부터 지금까지 보낸 전체 데이터 양
+    time_t startTime = time(NULL);      // 1초 송신 측정용 기준 시간
+    struct timeval start_t, end_t;      // 전체 평균 계산용 시작/끝 시각 상자
+    
+    gettimeofday(&start_t, NULL);       // 함수 시작하자마자 최초 시작 시각 기록
 
     if (buffer == NULL || recvBuffer == NULL) handleError("malloc error");
     
     memset(buffer, 'T', speed); // TCP 데이터라서 'T'로 채워넣음
 
     printf("목표 전송 속도: %d bytes/sec\n", speed);
+    if (mode == 2) printf("(단방향 모드 실행 중..)\n");
 
     for (;;) {
         // 1. 데이터 보내기
@@ -38,44 +43,46 @@ void sendData(int sock, int speed, int showData, int mode) {
         ssize_t sentLen = send(sock, buffer, speed, 0);
         if (sentLen <= 0) break;
         
-        totalSentBytes += sentLen; // 보낸 만큼 송신량 누적
+        totalSentBytes += sentLen; // 1초간 보낸 양 누적
+        cumulativeBytes += sentLen; // 전체 보낸 양 누적 (평균 계산용)
         
         // 2. 에코 데이터 받기 
         // 모드가 1(에코 모드)일 때만 서버가 돌려준 데이터를 기다렸다가 다시 받음
         if (mode == 1) {
-            // 에코 클라이언트니까 서버가 돌려준 데이터를 다시 받아야 함
             ssize_t readLen = recv(sock, recvBuffer, speed, 0);
             
             if (readLen > 0) {
                 printf("서버로부터 돌려받은 데이터 %ld bytes\n", readLen);
                 
-                // 사용자가 1(예)을 선택했을 때만 앞부분 100바이트 잘라서 보여줌
                 if (showData) {
                     strncpy(sampleData, recvBuffer, 100);
                     printf("에코 데이터 샘플: %s\n", sampleData);
                 }
             }
-            // 에코 모드인데 서버에서 응답 없거나 끊기면 반복문 탈출
             if (readLen <= 0) break;
         }
         
         time_t currentTime = time(NULL);
-        // 1초 지날 때마다 지금까지 쏜 데이터 양을 화면에 출력함
+        // 1초 지날 때마다 지금까지 쏜 데이터 양이랑 '누적 평균'을 한 줄에 출력함
         if (currentTime - startTime >= 1) {
-            // 숫자의 자릿수를 5자리로 맞춰서 그래프 시작 위치를 정렬
-            printf("TCP 송신량(Sending Throughput): %5d bytes/sec | ", totalSentBytes);
+            gettimeofday(&end_t, NULL); // 현재 시각 딱 재서
+            // 시작부터 지금까지 흐른 시간(초 단위) 계산함
+            double elapsed = (end_t.tv_sec - start_t.tv_sec) + (end_t.tv_usec - start_t.tv_usec) / 1000000.0;
+            // 전체 보낸 양을 흐른 시간으로 나눠서 진짜 평균 속도 구함
+            double avgThroughput = cumulativeBytes / elapsed;
+
+            // 한 줄에 [시간, 실시간, 누적 평균] 싹 다 보여줌
+            printf("[시간: %5.1f초] 실시간: %5d B/s | 누적 평균: %8.2f B/s | ", elapsed, totalSentBytes, avgThroughput);
             
-            // 500바이트당 네모 1개씩 출력하여 시각호 ㅏ
-            // 왜냐하면 손실률에 따른 차이를 터미널에서 명확히 표시하기 위해서
+            // 500바이트당 네모 1개씩 출력하여 시각화
             for (int i = 0; i < totalSentBytes / 500; i++) {
                 printf("■");
             }
             printf("\n");
 
             totalSentBytes = 0;          // 다음 1초 측정하려고 다시 0으로 비움
-            startTime = currentTime;     // 시간 기준점도 지금으로 바꿈
+            startTime = currentTime;     // 1초 기준점도 지금으로 바꿈
         }
-        printf("------------------------------------\n");
         
         // 1초 안 쉬고 그냥 보내면 속도가 너무 제각각이라 1초로 딱 맞춤
         sleep(1); 
@@ -86,47 +93,37 @@ void sendData(int sock, int speed, int showData, int mode) {
 }
 
 int main(int argc, char *argv[]) {
-    // 실행할 때 속도값(500, 1000, 2000) 안 넣으면 사용법 터미널에 출력
     if (argc != 2) {
         fprintf(stderr, "Usage: %s <speed>\n", argv[0]);
         return 1;
     }
 
-    // 터미널에서 글자로 들어온 속도를 진짜 숫자로 변환
-    int sendSpeed = atoi(argv[1]); // 문자열로 들어온 숫자를 진짜 숫자로 바꿔줌
-    int clientSock, showData, mode; // 실행 모드 저장할 mode 변수 추가
-    struct sockaddr_in servAddr; // 서버 주소 정보 저장하는 상자 같은 거
+    int sendSpeed = atoi(argv[1]); 
+    int clientSock, showData, mode; 
+    struct sockaddr_in servAddr; 
 
-    // 에코할지 그냥 보내기만 할지 모드 먼저 물어봄
-    printf("모드 선택 (1: 에코 모드, 2: 단방향 측정 모드): ");
+    printf("모드 선택 (1: 에코 모드, 2: 단방향 모드): ");
     if (scanf("%d", &mode) != 1) mode = 1;
 
-    // 서버처럼 클라이언트도 데이터 출력할지 먼저 물어봄
     printf("데이터 출력? (1: 예, 0: 아니오): ");
     if (scanf("%d", &showData) != 1) showData = 0;
 
-    // IPv4 주소 체계랑 TCP 방식 소켓 생성
     clientSock = socket(AF_INET, SOCK_STREAM, 0);
     if (clientSock < 0) handleError("socket error");
 
     memset(&servAddr, 0, sizeof(servAddr));
     servAddr.sin_family = AF_INET;
-    // 주소 글자를 컴퓨터가 알아듣는 이진 데이터로 변환
     servAddr.sin_addr.s_addr = inet_addr(IP);
-    // 컴퓨터마다 숫자를 읽는 순서가 다를 수 있어서 하나로 통일해주는 작업
     servAddr.sin_port = htons(PORT);
 
-    // TCP는 실제 데이터를 쏘기 전에 서버랑 먼저 연결이 되어야 함
     if (connect(clientSock, (struct sockaddr*)&servAddr, sizeof(servAddr)) != 0)
         handleError("connect error");
     
-    // 선택한 모드에 맞춰서 연결 성공 메시지 다르게 띄움
     if (mode == 1) printf("서버 연결 성공 (에코 모드)\n");
     else printf("서버 연결 성공 (단방향 측정 모드)\n");
     
-    // showData랑 mode 인자 같이 넘겨줌
     sendData(clientSock, sendSpeed, showData, mode);
 
-    close(clientSock); // 다 썼으면 소켓 닫아서 자원 반납
+    close(clientSock); 
     return 0;
 }

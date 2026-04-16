@@ -5,6 +5,7 @@
 #include <arpa/inet.h>  // 주소 변환하는 함수랑 상자 같은 구조체 쓰려고 추가
 #include <sys/socket.h> // 소켓 통신할 때 필수인 헤더
 #include <time.h>       // 1초 지났나 확인해서 속도 계산하려고 넣음
+#include <sys/time.h>   // 전체 실행 시간 정밀하게 재서 평균 구하려고 추가함
 
 #define PORT 2022       // 학번 앞자리로 정한 포트 번호
 #define BUFSIZE 2017    // 학번 뒷자리로 정한 버퍼 크기. 2000바이트까지 받을 수 있음
@@ -19,9 +20,13 @@ void handleError(const char *msg) {
 void measure(int client, int showData, int mode) {
     char buffer[BUFSIZE];           // 받은 데이터 임시로 담는 곳
     int totalBytes = 0;             // 1초 동안 총 몇 바이트 받았나 기록용
-    time_t startTime = time(NULL);  // 지금 시간 저장
+    long long cumulativeTotal = 0;  // 프로그램 시작부터 지금까지 받은 전체 데이터 양
+    time_t startTime = time(NULL);  // 1초 수신 측정용 기준 시간
+    struct timeval start_t, end_t;  // 전체 평균 계산용 시작/끝 시각 상자
     ssize_t readLen;                
     char sampleData[101] = {0};     
+
+    gettimeofday(&start_t, NULL);   // 클라이언트 접속하자마자 최초 시작 시각 기록
 
     // 클라이언트랑 연결 끊기 전까지 계속 받음. 받기만 하고 저장은 안 하니까 자동 삭제됨
     while ((readLen = recv(client, buffer, BUFSIZE - 1, 0)) > 0) {
@@ -32,21 +37,30 @@ void measure(int client, int showData, int mode) {
         }
 
         buffer[readLen] = '\0';     
-        totalBytes += readLen;      // 전송률 계산하려고 받은 양을 계속 더함
+        totalBytes += readLen;      // 1초간 받은 양 누적
+        cumulativeTotal += readLen; // 전체 받은 양 누적 (평균 계산용)
         
         if (showData) {
             strncpy(sampleData, buffer, 100); // 출력 모드면 앞부분만 살짝 복사
         }
 
         time_t currentTime = time(NULL); 
-        // 딱 1초 지날 때마다 지금까지 쌓인 데이터 양을 화면에 찍음
+        // 딱 1초 지날 때마다 지금까지 쌓인 데이터 양이랑 '누적 평균'을 한 줄에 찍음
         if (currentTime - startTime >= 1) {
+            gettimeofday(&end_t, NULL); // 현재 시각 딱 재서
+            // 시작부터 지금까지 흐른 시간(초 단위) 계산함
+            double elapsed = (end_t.tv_sec - start_t.tv_sec) + (end_t.tv_usec - start_t.tv_usec) / 1000000.0;
+            // 전체 받은 양을 흐른 시간으로 나눠서 진짜 평균 수신 속도 구함
+            double avgThroughput = cumulativeTotal / elapsed;
+
             if (showData) {
                 printf("수신 데이터 샘플: %s\n", sampleData);
             }
-            // 1초 동안 모인 데이터 양이 곧 전송 속도임
-            // 자릿수를 5자리로 맞추고 막대그래프 출력
-            printf("TCP Throughput: %5d bytes/sec | ", totalBytes);
+
+            // 한 줄에 [시간, 실시간, 누적 평균] 싹 다 보여줌
+            printf("[시간: %5.1f초] 실시간: %5d B/s | 누적 평균: %8.2f B/s | ", elapsed, totalBytes, avgThroughput);
+            
+            // 500바이트당 네모 1개씩 출력하여 시각화
             for (int i = 0; i < totalBytes / 500; i++) {
                 printf("■");
             }
