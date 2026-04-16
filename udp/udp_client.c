@@ -16,7 +16,7 @@ void handleError(const char *msg) {
 }
 
 // UDP 전송 함수
-void sendData(int clientSock, struct sockaddr_in *destAddr, int speed, int showData) {
+void sendData(int clientSock, struct sockaddr_in *destAddr, int speed, int showData, int mode) {
     // 실습 조건인 500, 1000, 2000바이트만큼 데이터 보낼 공간 할당
     char *buffer = (char*)malloc(speed);
     // 에코 서버가 돌려주는 것을 받을 공간도 똑같은 크기로 같이 만듦
@@ -42,19 +42,23 @@ void sendData(int clientSock, struct sockaddr_in *destAddr, int speed, int showD
 
         totalSentBytes += sentLen; // 보낸 만큼 송신량 누적
 
-        // 에코 클라이언트니까 방금 보낸 데이터를 서버한테서 바로 다시 받아야 함
-        // UDP는 받을 때도 보낸 사람 주소를 담을 곳이 필요해서 빈 상자를 하나 만들어서 넣어줌
-        struct sockaddr_in fromAddr;
-        socklen_t fromLen = sizeof(fromAddr);
-        ssize_t readLen = recvfrom(clientSock, recvBuffer, speed, 0, (struct sockaddr*)&fromAddr, &fromLen);
-        
-        if (readLen > 0) {
-            printf("서버로부터 돌려받은 데이터 %ld bytes\n", readLen);
+        // 모드가 1(에코 모드)일 때만 방금 보낸 데이터를 서버한테서 바로 다시 받아야 함
+        if (mode == 1) {
+            // UDP는 받을 때도 보낸 사람 주소를 담을 곳이 필요해서 빈 상자를 하나 만들어서 넣어줌
+            struct sockaddr_in fromAddr;
+            socklen_t fromLen = sizeof(fromAddr);
+            ssize_t readLen = recvfrom(clientSock, recvBuffer, speed, 0, (struct sockaddr*)&fromAddr, &fromLen);
             
-            if (showData) {
-                strncpy(sampleData, recvBuffer, 100);
-                printf("에코 데이터 샘플: %s\n", sampleData);
+            if (readLen > 0) {
+                printf("서버로부터 돌려받은 데이터 %ld bytes\n", readLen);
+                
+                if (showData) {
+                    strncpy(sampleData, recvBuffer, 100);
+                    printf("에코 데이터 샘플: %s\n", sampleData);
+                }
             }
+            // 에코 모드인데 받는 것도 실패하면 무한루프 빠져나감
+            if (readLen <= 0) break;
         }
         
         time_t currentTime = time(NULL);
@@ -72,14 +76,11 @@ void sendData(int clientSock, struct sockaddr_in *destAddr, int speed, int showD
         }
         printf("------------------------------------\n");
         
-        // 받는 것도 실패하면 무한루프 빠져나감
-        if (readLen <= 0) break;
-
         // 1초 안 쉬고 그냥 보내면 속도가 제각각이라 1초마다 보내게 딱 맞춤
         sleep(1);
     }
     
-    // 다 썼으면 할당했던 메모리 공간 싹 비워줌
+    // 다 썼으면 할당했던 메모 공간 싹 비워줌
     free(buffer);
     free(recvBuffer);
 }
@@ -93,8 +94,12 @@ int main(int argc, char *argv[]) {
 
     // 터미널에서 글자로 들어온 속도를 진짜 숫자로 변환
     int sendSpeed = atoi(argv[1]);
-    int clientSock, showData;
+    int clientSock, showData, mode; // 실행 모드 저장할 mode 변수 추가
     struct sockaddr_in servAddr; // 주소 정보 담아두는 상자 같은 거
+
+    // 에코할지 그냥 보내기만 할지 모드 먼저 물어봄
+    printf("모드 선택 (1: 에코 모드, 2: 단방향 모드): ");
+    if (scanf("%d", &mode) != 1) mode = 1;
 
     printf("데이터 출력? (1: 예, 0: 아니오): ");
     if (scanf("%d", &showData) != 1) showData = 0;
@@ -111,10 +116,12 @@ int main(int argc, char *argv[]) {
     // 컴퓨터마다 숫자 읽는 순서가 다를 수 있어서 하나로 통일하는 작업
     servAddr.sin_port = htons(PORT);
 
-    printf("UDP 전송 준비 완료 (에코 모드)\n");
+    // 선택한 모드에 맞춰서 준비 완료 메시지 다르게 띄움
+    if (mode == 1) printf("UDP 전송 준비 완료 (에코 모드)\n");
+    else printf("UDP 전송 준비 완료 (단방향 모드)\n");
     
-    // UDP는 TCP랑 다르게 연결 과정 없이 그냥 바로 데이터 쏨
-    sendData(clientSock, &servAddr, sendSpeed, showData);
+    // UDP는 TCP랑 다르게 연결 과정 없이 그냥 바로 데이터 쏨 (mode 인자도 전달)
+    sendData(clientSock, &servAddr, sendSpeed, showData, mode);
 
     // 소켓 자원 반납
     close(clientSock);

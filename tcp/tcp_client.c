@@ -15,8 +15,8 @@ void handleError(const char *msg) {
     exit(1);
 }
 
-// 출력 여부 변수 showData 추가
-void sendData(int sock, int speed, int showData) {
+
+void sendData(int sock, int speed, int showData, int mode) {
     // 실습 조건: 500, 1000, 2000바이트씩 공간 만들어서 보냄
     char *buffer = (char*)malloc(speed);
     // 서버가 다시 돌려주는 거 받을 공간도 똑같이 만듦 (에코 서버)
@@ -41,17 +41,22 @@ void sendData(int sock, int speed, int showData) {
         totalSentBytes += sentLen; // 보낸 만큼 송신량 누적
         
         // 2. 에코 데이터 받기 
-        // 에코 클라이언트니까 서버가 돌려준 데이터를 다시 받아야 함
-        ssize_t readLen = recv(sock, recvBuffer, speed, 0);
-        
-        if (readLen > 0) {
-            printf("서버로부터 돌려받은 데이터 %ld bytes\n", readLen);
+        // 모드가 1(에코 모드)일 때만 서버가 돌려준 데이터를 기다렸다가 다시 받음
+        if (mode == 1) {
+            // 에코 클라이언트니까 서버가 돌려준 데이터를 다시 받아야 함
+            ssize_t readLen = recv(sock, recvBuffer, speed, 0);
             
-            // 사용자가 1(예)을 선택했을 때만 앞부분 100바이트 잘라서 보여줌
-            if (showData) {
-                strncpy(sampleData, recvBuffer, 100);
-                printf("에코 데이터 샘플: %s\n", sampleData);
+            if (readLen > 0) {
+                printf("서버로부터 돌려받은 데이터 %ld bytes\n", readLen);
+                
+                // 사용자가 1(예)을 선택했을 때만 앞부분 100바이트 잘라서 보여줌
+                if (showData) {
+                    strncpy(sampleData, recvBuffer, 100);
+                    printf("에코 데이터 샘플: %s\n", sampleData);
+                }
             }
+            // 에코 모드인데 서버에서 응답 없거나 끊기면 반복문 탈출
+            if (readLen <= 0) break;
         }
         
         time_t currentTime = time(NULL);
@@ -60,7 +65,7 @@ void sendData(int sock, int speed, int showData) {
             // 숫자의 자릿수를 5자리로 맞춰서 그래프 시작 위치를 정렬
             printf("TCP 송신량(Sending Throughput): %5d bytes/sec | ", totalSentBytes);
             
-            // 500바이트당 네모(■) 1개씩 출력하여 시각화 
+            // 500바이트당 네모 1개씩 출력하여 시각호 ㅏ
             // 왜냐하면 손실률에 따른 차이를 터미널에서 명확히 표시하기 위해서
             for (int i = 0; i < totalSentBytes / 500; i++) {
                 printf("■");
@@ -71,8 +76,6 @@ void sendData(int sock, int speed, int showData) {
             startTime = currentTime;     // 시간 기준점도 지금으로 바꿈
         }
         printf("------------------------------------\n");
-        
-        if (readLen <= 0) break;
         
         // 1초 안 쉬고 그냥 보내면 속도가 너무 제각각이라 1초로 딱 맞춤
         sleep(1); 
@@ -91,8 +94,12 @@ int main(int argc, char *argv[]) {
 
     // 터미널에서 글자로 들어온 속도를 진짜 숫자로 변환
     int sendSpeed = atoi(argv[1]); // 문자열로 들어온 숫자를 진짜 숫자로 바꿔줌
-    int clientSock, showData;
+    int clientSock, showData, mode; // 실행 모드 저장할 mode 변수 추가
     struct sockaddr_in servAddr; // 서버 주소 정보 저장하는 상자 같은 거
+
+    // 에코할지 그냥 보내기만 할지 모드 먼저 물어봄
+    printf("모드 선택 (1: 에코 모드, 2: 단방향 측정 모드): ");
+    if (scanf("%d", &mode) != 1) mode = 1;
 
     // 서버처럼 클라이언트도 데이터 출력할지 먼저 물어봄
     printf("데이터 출력? (1: 예, 0: 아니오): ");
@@ -113,10 +120,12 @@ int main(int argc, char *argv[]) {
     if (connect(clientSock, (struct sockaddr*)&servAddr, sizeof(servAddr)) != 0)
         handleError("connect error");
     
-    printf("서버 연결 성공 (에코 모드)\n");
+    // 선택한 모드에 맞춰서 연결 성공 메시지 다르게 띄움
+    if (mode == 1) printf("서버 연결 성공 (에코 모드)\n");
+    else printf("서버 연결 성공 (단방향 측정 모드)\n");
     
-    // showData 인자 같이 넘겨줌
-    sendData(clientSock, sendSpeed, showData);
+    // showData랑 mode 인자 같이 넘겨줌
+    sendData(clientSock, sendSpeed, showData, mode);
 
     close(clientSock); // 다 썼으면 소켓 닫아서 자원 반납
     return 0;

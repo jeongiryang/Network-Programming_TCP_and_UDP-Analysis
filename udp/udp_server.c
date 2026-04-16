@@ -15,8 +15,7 @@ void handleError(const char *msg) {
     exit(1);
 }
 
-// UDP 데이터 받아서 에코에서 다시 전송하고 속도 측정하는 함수
-void measure(int serverSock, int showData) {
+void measure(int serverSock, int showData, int mode) {
     char buffer[BUFSIZE];           // 데이터 임시로 담는 곳
     struct sockaddr_in cliAddr;     // 데이터 보낸 사람 정보 담아두는 상자
     socklen_t cliLen;               
@@ -32,9 +31,11 @@ void measure(int serverSock, int showData) {
         readLen = recvfrom(serverSock, buffer, BUFSIZE - 1, 0, (struct sockaddr*)&cliAddr, &cliLen);
         
         if (readLen > 0) {
-            // 에코 서버니까 받은 데이터를 그대로 클라이언트한테 다시 쏴줌
-            // 방금 recvfrom으로 알아낸 클라이언트 주소(cliAddr)를 목적지로 씀
-            sendto(serverSock, buffer, readLen, 0, (struct sockaddr*)&cliAddr, cliLen);
+            // 모드가 1(에코 모드)일 때만 받은 데이터를 그대로 클라이언트한테 다시 쏴줌
+            if (mode == 1) {
+                // 방금 recvfrom으로 알아낸 클라이언트 주소(cliAddr)를 목적지로 씀
+                sendto(serverSock, buffer, readLen, 0, (struct sockaddr*)&cliAddr, cliLen);
+            }
 
             buffer[readLen] = '\0'; 
             totalBytes += readLen;  // 속도 계산하려고 받은 양을 계속 더함
@@ -65,8 +66,12 @@ void measure(int serverSock, int showData) {
 }
 
 int main() {
-    int serverSock, showData;       
+    int serverSock, showData, mode; // 실행 모드 저장할 mode 변수 추가
     struct sockaddr_in servAddr;    // 서버 주소 정보 담는 상자 같은 거임
+
+    // 에코할지 그냥 받을지만 할지 모드 먼저 물어봄
+    printf("모드 선택 (1: 에코 모드, 2: 단방향 모드): ");
+    if (scanf("%d", &mode) != 1) mode = 1;
 
     printf("데이터 출력? (1: 예, 0: 아니오): ");
     if (scanf("%d", &showData) != 1) showData = 0;
@@ -87,9 +92,12 @@ int main() {
     if (bind(serverSock, (struct sockaddr*)&servAddr, sizeof(servAddr)) < 0)
         handleError("bind error");
 
-    printf("UDP 서버 대기 중 (Port: %d)...\n", PORT);
-    // UDP는 기다리는 함수(listen) 없이 바로 데이터 받기 시작하면 됨
-    measure(serverSock, showData);
+    // 선택한 모드에 맞춰서 대기 메시지 다르게 띄움
+    if (mode == 1) printf("UDP 서버 대기 중 (에코 모드, Port: %d)...\n", PORT);
+    else printf("UDP 서버 대기 중 (단방향 모드, Port: %d)...\n", PORT);
+    
+    // 유디피는 기다리는 함수(listen) 없이 바로 데이터 받기 시작하면 됨
+    measure(serverSock, showData, mode);
 
     // 다 썼으면 소켓 반납
     close(serverSock);

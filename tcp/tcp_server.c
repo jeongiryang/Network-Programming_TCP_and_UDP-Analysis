@@ -15,8 +15,8 @@ void handleError(const char *msg) {
     exit(1);
 }
 
-// 데이터 받고 전송률 계산하는 함수
-void measure(int client, int showData) {
+// 데이터 받고 전송률 계산하는 함수 
+void measure(int client, int showData, int mode) {
     char buffer[BUFSIZE];           // 받은 데이터 임시로 담는 곳
     int totalBytes = 0;             // 1초 동안 총 몇 바이트 받았나 기록용
     time_t startTime = time(NULL);  // 지금 시간 저장
@@ -26,8 +26,10 @@ void measure(int client, int showData) {
     // 클라이언트랑 연결 끊기 전까지 계속 받음. 받기만 하고 저장은 안 하니까 자동 삭제됨
     while ((readLen = recv(client, buffer, BUFSIZE - 1, 0)) > 0) {
         
-        //  에코 서버니까 클라이언트가 보낸 걸 그대로 다시 쏴줌 
-        send(client, buffer, readLen, 0);
+        // 모드가 1(에코 모드)일 때만 클라이언트가 보낸 걸 그대로 다시 쏴줌
+        if (mode == 1) {
+            send(client, buffer, readLen, 0);
+        }
 
         buffer[readLen] = '\0';     
         totalBytes += readLen;      // 전송률 계산하려고 받은 양을 계속 더함
@@ -59,9 +61,13 @@ void measure(int client, int showData) {
 }
 
 int main() {
-    int serverSock, clientSock, showData; 
+    int serverSock, clientSock, showData, mode; // 실행 모드 저장할 mode 변수 추가
     struct sockaddr_in servAddr, cliAddr; // 주소 정보 저장하는 상자 같은 거
     socklen_t cliLen;
+
+    // 에코할지 그냥 받을지만 할지 물어봄
+    printf("모드 선택 (1: 에코 모드, 2: 단방향 모드): ");
+    if (scanf("%d", &mode) != 1) mode = 1;
 
     printf("데이터 출력? (1: 예, 0: 아니오): ");
     if (scanf("%d", &showData) != 1) showData = 0;
@@ -84,7 +90,9 @@ int main() {
     // 클라이언트 기다리는 대기 상태로 바꿈. 최대 5명까지 줄 세울 수 있음
     if (listen(serverSock, 5) < 0) handleError("listen error");
 
-    printf("TCP 서버 대기 중 (Port: %d)...\n", PORT);
+    // 선택한 모드에 맞춰서 대기 메시지 다르게 띄움
+    if (mode == 1) printf("TCP 서버 대기 중 (에코 모드, Port: %d)...\n", PORT);
+    else printf("TCP 서버 대기 중 (단방향 측정 모드, Port: %d)...\n", PORT);
 
     for (;;) {
         cliLen = sizeof(cliAddr);
@@ -93,8 +101,8 @@ int main() {
         if (clientSock < 0) continue;
         
         printf("클라이언트 접속\n");
-        // 여기서 실제로 데이터 받고 다시 주는(에코) 및 속도 측정함
-        measure(clientSock, showData);
+        // 여기서 실제로 데이터 받고 모드에 따라 다시 주거나(에코) 속도 측정함
+        measure(clientSock, showData, mode);
         
         // 통신 끝나면 소켓 닫고 다시 루프 돌면서 다음 접속 기다림
         printf("접속 종료\n");
