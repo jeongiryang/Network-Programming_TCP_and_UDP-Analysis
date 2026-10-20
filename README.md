@@ -1,3 +1,63 @@
+# TCP / UDP Performance Analysis
+
+C 소켓 프로그램으로 TCP·UDP의 에코 모드와 단방향 전송을 비교한 네트워크 실험입니다. 송신 속도와 NetEM 지연·손실 조건을 바꾸며 실시간·누적 평균 처리량을 기록했습니다.
+
+![C](https://img.shields.io/badge/C-A8B9CC?style=flat-square&logo=c&logoColor=black)
+![Linux](https://img.shields.io/badge/Linux-FCC624?style=flat-square&logo=linux&logoColor=black)
+![NetEM](https://img.shields.io/badge/NetEM-555555?style=flat-square)
+
+[컴파일·실행](#실행) · [TCP 소스](tcp) · [UDP 소스](udp) · [전체 분석 보고서](REPORT.md)
+
+| TCP · 손실 조건 비교 | UDP · 손실 조건 비교 |
+| --- | --- |
+| ![TCP 처리량 실험 그래프](screenshots/graph/graph_2_tcp_1.0.png) | ![UDP 처리량 실험 그래프](screenshots/graph/graph_4_udp_1.0.png) |
+
+## 실험 구성
+
+| 항목 | 설정 |
+| --- | --- |
+| 통신 | `127.0.0.1:2022` / TCP·UDP |
+| 모드 | `1` 에코 / `2` 단방향 수신 |
+| 목표 송신량 | 초당 `500` / `1000` / `2000` bytes |
+| 네트워크 조건 | NetEM 지연 설정 `100ms`, 손실률 `0.1%` / `1%` |
+| 기록 | 1초 단위 처리량, 시작 이후 누적 평균 |
+
+보고서에는 각 조건의 측정 화면과 4개 비교 그래프가 있습니다. 결과는 이 프로그램의 전송 주기와 실험 환경을 기준으로 읽습니다.
+
+## 실행
+
+기존 실험 환경은 **WSL2 / Ubuntu 24.04 / GCC 13.3.0**입니다. 저장소 루트에서 컴파일합니다.
+
+```bash
+gcc tcp/tcp_server.c -o tcp_server
+gcc tcp/tcp_client.c -o tcp_client
+gcc udp/udp_server.c -o udp_server
+gcc udp/udp_client.c -o udp_client
+```
+
+서로 다른 터미널에서 서버를 먼저 실행하고 클라이언트를 연결합니다. 양쪽에서 같은 모드와 데이터 출력 여부를 선택합니다.
+
+```bash
+# 터미널 1
+./tcp_server
+
+# 터미널 2
+./tcp_client 500
+```
+
+UDP는 `./udp_server`, `./udp_client 500`으로 실행합니다. NetEM 설정·해제 명령은 아래 환경 기록에 있습니다.
+
+## 결과와 자료
+
+- [처리량 측정 결과](REPORT.md#3-전송-속도-및-패킷-손실률-변화에-따른-throughput-측정-결과)
+- [모드별 결과 분석](REPORT.md#4-결과-분석-tcp와-udp의-차이-및-모드별-특성)
+- [측정 화면과 그래프](screenshots)
+
+## 과제 보고서
+
+<details>
+<summary>기존 과제 보고서 펼치기</summary>
+
 # Network Programming HW01: TCP vs UDP Performance Analysis
 
 ## 환경 구축
@@ -78,3 +138,5 @@ tc qdisc show dev lo
 ```bash
 sudo tc qdisc del dev lo root
 ```
+
+</details>
